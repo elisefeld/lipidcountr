@@ -1,0 +1,68 @@
+---
+title: "LipidCounter"
+author: "Elise Hachfeld"
+date: "2024-02-22"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(EBImage)
+```
+
+# Provide Input
+**Insert Path to your folder of images here:**
+```{r}
+folder_path <- "/Users/Elise/Code/TETLAB/Images/Droplets/"
+```
+
+**Insert name of the desired output file here:**
+```{r}
+output_file <- "lipid_count.csv"
+```
+
+# Now Run This Chunk
+```{r}
+#DO NOT EDIT THE CODE BELOW
+
+file_name <- list.files(folder_path)
+
+# Creates Data Frame with those File Names
+lipid_count <- data.frame(file_name)
+  
+# Creates Columns Droplets, Full Path to File
+lipid_count <- lipid_count %>%
+    mutate(full_path = paste0(folder_path, lipid_count$file_name))
+
+# Creates Index for Rows in Data Frame
+count <- 0
+
+# Begins Loop
+for (droplets in 1:nrow(lipid_count))
+{count <- count + 1
+
+tet <- readImage(lipid_count$full_path[count])
+
+#RGB > Greyscale, Gaussian Blur
+#colorMode(tet) = Grayscale
+tet <- gblur(tet, sigma = 2)
+display(tet)
+
+#Adaptive Thresholding
+disc = makeBrush(25, "disc")
+disc = disc / sum(disc)
+offset = 0.05
+tet_bg = filter2(tet, disc )
+tet_th = tet > tet_bg + offset
+display(tet_th)
+
+#Count
+lipid_count$droplets[count] <- max(bwlabel(tet_th))}
+
+#Export Results as CSV
+lipid_count <- subset(lipid_count, select = -c(full_path))
+write.csv(lipid_count, output_file, row.names=FALSE)
+```
