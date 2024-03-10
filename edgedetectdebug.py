@@ -47,22 +47,23 @@ while i < len(file_names):
         mask = cv.dilate(mask, kernel, iterations=8)
         mask = cv.erode(mask, kernel, iterations=8)
 
-        mask = mask == 1
+        #mask = mask == 1
         masks.append(mask)
-        
-        cell_num.append(n)
-        image_names.append(file_names[i])
 
         cell = np.copy(original)
         cell[~mask.astype(bool)] = 0
+
+        # Count Droplets
         spots = cv.adaptiveThreshold(cell, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
         circ, hierarchy = cv.findContours(spots, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+
+        image_names.append(file_names[i])
+        cell_num.append(n)
         droplets_count.append(len(circ))
 
-
-    debug = np.zeros(connected.shape, np.uint8)
-    for n in range(len(masks)):
-        debug[masks[n] == True] = (n + 1) * 8
+    #debug = np.zeros(connected.shape, np.uint8)
+    #for n in range(len(masks)):
+    #    debug[masks[n] == True] = (n + 1) * 8
 
     # for n in range(len(masks)):
     #  cell = np.copy(original)
@@ -92,7 +93,7 @@ print(len(cell_num))
 print(len(image_names))
 print(len(droplets_count))
 
-dict = {'images': image_names, 'cells': cell_num, 'droplets': droplets_count}  
+dict = {'image': image_names, 'cell': cell_num, 'droplets': droplets_count}  
 df = pd.DataFrame(dict) 
 df.to_csv('lipid_count.csv') 
 
