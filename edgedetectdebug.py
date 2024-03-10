@@ -4,8 +4,9 @@ import csv
 from pathlib import Path
 
 KERNEL = np.ones((3, 3), np.uint8)
-
-DIRECTORY_PATH = Path("/Users/Elise/Code/TETLAB/Images/INA/3.4.24/")
+NORM_IMG = np.zeros((800, 800))
+DIRECTORY_PATH = Path("/Users/Elise/Code/TETLAB/Images/Droplets/")
+assert DIRECTORY_PATH.exists() is not False, "path does not exist"
 
 with open('lipid_count.csv', 'w', newline='') as file:
 
@@ -14,17 +15,43 @@ with open('lipid_count.csv', 'w', newline='') as file:
 
     # Iterate through images in a given folder.
     for file_path in DIRECTORY_PATH.glob('*'):
-        if (file_path.suffix == '.jpg') | (file_path.suffix == '.tiff'):
-        
-            original = cv.imread(str(file_path), cv.IMREAD_GRAYSCALE)
-            #cv.imwrite("original" + "_file_" + str(i) + ".jpg", original)
-            assert original is not None, "file could not be read, check with pathlib.Path.exists()"
+
+        file_suffix = file_path.suffix
+        if ((file_suffix.lower() == '.jpg')) |\
+           ((file_suffix.lower() == '.jpeg'))|\
+           ((file_suffix.lower() == '.tif')) |\
+           ((file_suffix.lower() == '.tiff')):
+             
+            if ((file_suffix.lower() == '.jpg')) | ((file_suffix.lower() == '.jpeg')):
+                    original = cv.imread(str(file_path), -1)
+                    original = cv.cvtColor(original, cv.COLOR_RGB2GRAY)
+
+            elif ((file_suffix.lower() == '.tif')) | ((file_suffix.lower() == '.tiff')):
+                original = cv.imread(str(file_path), -1)
+                original = (original/256).astype('uint8')
+            
+            normal = cv.normalize(original,  NORM_IMG, 0, 255, cv.NORM_MINMAX)
+
+            cv.imshow("original_" + str(file_path.name), original)
+            cv.waitKey(0)
+
+            cv.imshow("normal_" + str(file_path.name), normal)
+            cv.waitKey(0)
 
             # Preprocessing
-            blur = cv.GaussianBlur(original, (3, 3), 0) 
+            #equal = cv.equalizeHist(original) 
+
+            #cv.imshow("equal_" + str(file_path.name), equal)
+            #cv.waitKey(0)
+
+            blur = cv.GaussianBlur(normal, (3, 3), 0) 
             thresh = cv.adaptiveThreshold(blur, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
             dilated = cv.dilate(thresh, KERNEL, iterations=1)
             eroded = cv.erode(dilated, KERNEL, iterations=1)
+
+            cv.imwrite("thresh_" + str(file_path.name) + ".jpg", thresh)
+            cv.imshow("thresh_" + str(file_path.name), thresh)
+            cv.waitKey(0)
 
             # Connected Components
             N, connected, statistics, centroids = cv.connectedComponentsWithStats(eroded)
@@ -43,13 +70,39 @@ with open('lipid_count.csv', 'w', newline='') as file:
                     cell[~mask.astype(bool)] = 0
 
                     # Count Droplets
-                    spots = cv.adaptiveThreshold(cell, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
-                    circ, hierarchy = cv.findContours(spots, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+                    drop_thresh = cv.adaptiveThreshold(cell, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 3, 2)
+                    drop_contour, hierarchy = cv.findContours(drop_thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+                    contours = cv.drawContours(original, drop_contour, -1, (0, 255, 0), 3) 
 
-                    writer.writerow({
-                        'image_name': file_path.name,
-                        'cell_num': cell_num,
-                        'droplets_count': len(circ)
-                    })
+                    # Draw Cell Contours
+                    cell_thresh = cv.adaptiveThreshold(cell, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
+                    cell_contour, hierarchy = cv.findContours(cell_thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+                    cell_contours = cv.drawContours(original, cell_contour, -1, (0, 255, 0), 3) 
 
-                    cell_num += 1
+                    # cv.imwrite("dilated_" + str(file_path.name) + ".jpg", dilated)
+                    # cv.imshow("dilated_" + str(file_path.name), dilated)
+                    # cv.waitKey(0)
+
+                    # cv.imwrite("eroded_" + str(file_path.name) + ".jpg", eroded)
+                    # cv.imshow("eroded_" + str(file_path.name), eroded)
+                    # cv.waitKey(0)
+
+                    # cv.imwrite("drop_thresh" + str(file_path.name) + ".jpg", drop_thresh)
+                    # cv.imshow("drop_thresh_" + str(file_path.name), drop_thresh)
+                    # cv.waitKey(0)
+
+                    # cv.imwrite("cell_thresh_" + str(file_path.name) + ".jpg", cell_thresh)
+                    # cv.imshow("cell_thresh_" + str(file_path.name), cell_thresh)
+                    # cv.waitKey(0)
+
+                    # cv.imwrite("cell_contours_" + str(file_path.name) + ".jpg", cell_contours)
+                    # cv.imshow("cell_contours_" + str(file_path.name), cell_contours)
+                    # cv.waitKey(0)
+
+            writer.writerow({
+                'image_name': file_path.name,
+                'cell_num': cell_num,
+                'droplets_count': len(drop_contour)
+            })
+            
+            cell_num += 1
