@@ -3,11 +3,11 @@ import cv2 as cv
 import csv
 from pathlib import Path
 
+KERNEL = np.ones((3, 3), np.uint8)
+
 DIRECTORY_PATH = Path("/Users/Elise/Code/TETLAB/Images/INA/3.4.24/")
 
 with open('lipid_count.csv', 'w', newline='') as file:
-
-    # TODO: find argument to DictWriter to write headers to CSV.
 
     writer = csv.DictWriter(file, ['image_name', 'cell_num', 'droplets_count'])
     writer.writeheader()
@@ -23,9 +23,8 @@ with open('lipid_count.csv', 'w', newline='') as file:
             # Preprocessing
             blur = cv.GaussianBlur(original, (3, 3), 0) 
             thresh = cv.adaptiveThreshold(blur, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
-            kernel = np.ones((3, 3), np.uint8)
-            dilated = cv.dilate(thresh, kernel, iterations=1)
-            eroded = cv.erode(dilated, kernel, iterations=1)
+            dilated = cv.dilate(thresh, KERNEL, iterations=1)
+            eroded = cv.erode(dilated, KERNEL, iterations=1)
 
             # Connected Components
             N, connected, statistics, centroids = cv.connectedComponentsWithStats(eroded)
@@ -37,8 +36,8 @@ with open('lipid_count.csv', 'w', newline='') as file:
                     mask = np.zeros(connected.shape, np.uint8)
                     mask[connected == n] = 1
 
-                    mask = cv.dilate(mask, kernel, iterations=8)
-                    mask = cv.erode(mask, kernel, iterations=8)
+                    mask = cv.dilate(mask, KERNEL, iterations=8)
+                    mask = cv.erode(mask, KERNEL, iterations=8)
 
                     cell = np.copy(original)
                     cell[~mask.astype(bool)] = 0
