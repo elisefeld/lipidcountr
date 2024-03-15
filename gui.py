@@ -111,7 +111,9 @@ def main_help():
      window_help = make_help()
      while True: 
         event_help, values_help = window_help.read()
-        if event_help == 'OK' or sg.WIN_CLOSED:
+        if event_help == sg.WIN_CLOSED:
+            break
+        elif event_help == 'OK':
             window_help.Close()
             break
 
