@@ -5,106 +5,162 @@ import csv
 from pathlib import Path
 import PySimpleGUI as sg
 
+
 #GUI
 sg.theme('Dark')
 sg.set_options(element_padding = (0,0))   
-#Select the folder containing the fluorescent microscope images.
-#Select the folder containing the light microscope images.
-#Select the folder which you want the file to be saved to.
-#Specify a name for the file to be saved. 
-layout1 = [[sg.Text('Fluorescent ',
+
+def make_input():
+     layout_input = [[sg.Text('Fluorescent',
                     pad = ((3,0),0),
                     size = (12,1), 
                     font = ('Georgia', 16)),
                     sg.Input(key = '-fluoro_path-'),
-                    sg.FolderBrowse()],
+                    sg.FolderBrowse(font = ('Georgia', 12), pad = ((10,10),5))],
             [sg.Text('Light',
                     pad = ((3,0),0),
                     size = (12,1), 
                     font = ('Georgia', 16)),
                     sg.Input(key = '-light_path-'),
-                    sg.FolderBrowse()],
+                    sg.FolderBrowse(font = ('Georgia', 12), pad = ((10,10),5))],
             [sg.Text('Output',
                     pad = ((3,0),0),
                     size = (12,1),
                     font = ('Georgia', 16)),
                     sg.Input(key = '-output_path-'),
-                    [sg.FolderBrowse()],
+                    sg.FolderBrowse(font = ('Georgia', 12), pad = ((10,10),5))],
             [sg.Text('File Name',
                     pad = ((3,0),0),
                     size = (12,1),
                     font = ('Georgia', 16)),
-                    sg.Input(key = '-file_name-'),
-            [sg.Push(), sg.Button('Go',
-                        font = ('Georgia', 12),
-                        button_color = ('white', 'springgreen4')),
-             sg.Button('Cancel',
-                        font = ('Georgia', 12),
-                        button_color = ('white', 'firebrick3'))]
-            ]]  
+                    sg.Input(key = '-file_name-')],
+            
+            [sg.Help(font = ('Georgia', 12),
+                     button_color = ('white', 'springgreen4'),
+                     pad = ((3,0),5)),
+            sg.Push(),
+                 sg.Submit(font = ('Georgia', 12),
+                           button_color = ('white', 'springgreen4'),
+                           pad = ((3,0),5)),
+                 sg.Cancel(font = ('Georgia', 12),
+                           button_color = ('white', 'firebrick3'),
+                           pad = ((3,0),5))],
+            ]
+     return sg.Window('Folder Selection',
+                    layout_input,
+                    auto_size_buttons=False,
+                    element_justification='l',
+                    finalize = True)
 
-window1 = sg.Window('Folder Selection',
-                    layout1,
-                    auto_size_buttons=True,
-                    element_justification='l')
-window2_active=False
+def make_help():
+   layout_help = [[sg.Text('Fluorescent: Select the folder containing the fluorescent microscope images. EX: /User/Name/Downloads/fluorescent/',
+                    pad = ((3,0),0),
+                    size = (12,1), 
+                    font = ('Georgia', 16))],
+                    
+            [sg.Text('Light: Select the folder containing the light microscope images. EX: /User/Name/Downloads/light/',
+                    pad = ((3,0),0),
+                    size = (12,1), 
+                    font = ('Georgia', 16))],
+                    
+            [sg.Text('Output: Select the folder which you want the file to be saved to. EX: /User/Name/Downloads/',
+                    pad = ((3,0),0),
+                    size = (12,1),
+                    font = ('Georgia', 16))],
+            [sg.Text('File Name: Specify a name for the file to be saved. EX: lipid_count ',
+                    pad = ((3,0),0),
+                    size = (12,1),
+                    font = ('Georgia', 16))],
 
-while True:             
-    event1, values1 = window1.read()
-    if event1 == sg.WIN_CLOSED:
-        break
-    elif event1 == 'Cancel':
-        break
-    elif event1 == 'Go':
-        fluoro_path = str(values1['-fluoro_path-'])
-        light_path = str(values1['-light_path-'])
-        output_path = str(values1['-output_path-'])
-        file_name = str(values1['-file_name-'])
+            [sg.OK(font = ('Georgia', 12),
+                        button_color = ('white', 'springgreen4'),
+                        pad = ((3,0),5))]]
+   return sg.Window('Folder Selection Help',
+                    layout_help,
+                    auto_size_buttons=False,
+                    element_justification='l',
+                    finalize = True)
 
-        layout2 = [[sg.Text('You selected these folders:',
-                    #size = (12,1),
-                    font = ('Helvetica Bold', 20),
-                    expand_x = True,)],
-            [sg.Text(fluoro_path,
-                    #size = (12,1), 
-                    font = ('Helvetica Bold', 16),
-                    expand_x = True,)],
-            [sg.Text(light_path,
-                    #size = (12,1), 
-                    font = ('Helvetica Bold', 16),
-                    expand_x = True,)],
-            [sg.Text(output_path,
-                    #size = (12,1),
-                    font = ('Helvetica Bold', 16),
-                    expand_x = True,)],
-            [sg.Button('Continue'), sg.Button('Exit')],
-                  ]
+
+def make_confirm():
+    layout2 = [[sg.Text('You selected these folders:',
+                #size = (12,1),
+                font = ('Helvetica Bold', 20),
+                expand_x = True,)],
+        [sg.Text(fluoro_path,
+                #size = (12,1), 
+                font = ('Helvetica Bold', 16),
+                expand_x = True,)],
+        [sg.Text(light_path,
+                #size = (12,1), 
+                font = ('Helvetica Bold', 16),
+                expand_x = True,)],
+        [sg.Text(output_path,
+                #size = (12,1),
+                font = ('Helvetica Bold', 16),
+                expand_x = True,)],
+        [sg.OK(),
+            sg.Exit()
+        ],
+                ]
+    return sg.Window('Folders Selected',
+                      layout2,
+                      finalize = True)
+
+def main_help():
+     window_help = make_help()
+     while True: 
+        event_help, values_help = window_help.read()
+        if event_help == 'OK' or sg.WIN_CLOSED:
+            window_help.Close()
+            break
+
+def main_input():
+     window_input = make_input()
+     while True: 
+        event_input, values_input = window_input.read()
+        if event_input == sg.WIN_CLOSED:
+            break
+        if event_input == 'Cancel':
+            break
+        if event_input == 'Help':
+            main_help()
+        if event_input == 'Submit':
+             global fluoro_path
+             fluoro_path = str(values_input['-fluoro_path-'])
+             global light_path
+             light_path = str(values_input['-light_path-'])
+             global output_path
+             output_path = str(values_input['-output_path-'])
+             global file_name
+             file_name = str(values_input['-file_name-'])
+             main_confirm()
+            
+    
+def main_confirm():
+    window_confirm = make_confirm()
+    while True:
+        event_confirm, values_confirm = window_confirm.read()
+        if event_confirm == sg.WIN_CLOSED:
+            break
+        elif event_confirm == 'Exit':
+            fluoro_path = ""
+            light_path = ""
+            output_path = ""
+            window_confirm.Close()
+            window_confirm.active = False
+            break
+        elif event_confirm == 'OK':
+            window_confirm.Close()
+            window_confirm.active = False
+            break
+                    
+    
+main_input()
         
-        window2 = sg.Window('Folders Selected',
-                            layout2)
-        
-        window2.active = True
-        window1.hide()
+       
 
-        while True:
-            event2, values2 = window2.read()
-            if event2 == sg.WIN_CLOSED:
-                break
-            elif event2 == 'Exit':
-                fluoro_path = ""
-                light_path = ""
-                output_path = ""
-                window1.Close()
-                window1.active = False
-                window2.Close()
-                window2.active = False
-                break
-            elif event2 == 'Continue':
-                window2.Close()
-                window2.active = False
-                window1.Close()
-                window1.active = False
-                break
+
 
 #PROCESSING
 KERNEL = np.ones((3, 3), np.uint8)
