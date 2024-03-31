@@ -1,107 +1,37 @@
-#gui.py
+#gui_functions.py
 import numpy as np
 import cv2 as cv
 import csv
 from pathlib import Path
 import PySimpleGUI as sg
-import textwrap
-
-def img_process():
-    #PROCESSING
-    KERNEL = np.ones((3, 3), np.uint8)
-    FLUORO_PATH = Path(fluoro_path)
-    LIGHT_PATH = Path(light_path)
-    OUTPUT_PATH = Path(output_path)
-    FILE_NAME = file_name
-
-    with open(str(OUTPUT_PATH) + FILE_NAME +".csv", 'w', newline='') as file:
-
-        writer = csv.DictWriter(file, ['image_name', 'cell_num', 'droplets_count'])
-        writer.writeheader()
-
-        # Iterate through images in a given folder.
-        for file_path in FLUORO_PATH.glob('*'):
-            if (file_path.suffix == '.jpg')|\
-            (file_path.suffix == '.jpeg')|\
-            (file_path.suffix == '.tif')|\
-            (file_path.suffix == '.tiff'):
-            
-                original = cv.imread(str(file_path), cv.IMREAD_GRAYSCALE)
-                cv.imshow("original_" + str(file_path.name), original)
-                cv.waitKey(500)
-                #cv.imwrite("original" + "_file_" + str(i) + ".jpg", original)
-                assert original is not None, "file could not be read, check with pathlib.Path.exists()"
-
-                # Preprocessing
-                blur = cv.GaussianBlur(original, (3, 3), 0) 
-                thresh = cv.adaptiveThreshold(blur, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
-                cv.imshow("thresh" + str(file_path.name), thresh)
-                cv.waitKey(500)
-                dilated = cv.dilate(thresh, KERNEL, iterations=1)
-                cv.imshow("dilated" + str(file_path.name), dilated)
-                cv.waitKey(500)
-                eroded = cv.erode(dilated, KERNEL, iterations=1)
-                cv.imshow("eroded" + str(file_path.name), eroded)
-                cv.waitKey(500)
-
-                # Connected Components
-                N, connected, statistics, centroids = cv.connectedComponentsWithStats(eroded)
-                sizes = statistics[:,-1]
-                
-                cell_num = 0
-                for n in range(1, N):
-                    if sizes[n] >= 1000:
-                        mask = np.zeros(connected.shape, np.uint8)
-                        mask[connected == n] = 1
-
-                        mask = cv.dilate(mask, KERNEL, iterations=8)
-                        mask = cv.erode(mask, KERNEL, iterations=8)
-
-                        cell = np.copy(original)
-                        cell[~mask.astype(bool)] = 0
-
-                        # Count Droplets
-                        spots = cv.adaptiveThreshold(cell, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
-                        circ, hierarchy = cv.findContours(spots, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-                        writer.writerow({
-                            'image_name': file_path.name,
-                            'cell_num': cell_num + 1,
-                            'droplets_count': len(circ)
-                        })
-
-                        cell_num += 1
-    layout3 = [[sg.Text('Processing Complete! ',
-                        size=(12,1), 
-                        font=('Helvetica Bold', 16),
-                        expand_x=True,)]]
-    window3 = sg.Window('Window 3',
-                                layout3)
+import skimage as ski
 
 #GUI
 sg.theme('Dark')
 sg.set_options(element_padding = (0,0))   
 
+#FIRST WINDOW: INPUT
 def make_input():
      layout_input = [[sg.Text('Fluorescent',
-                    pad = ((3,0),5),
+                    pad = ((3,0),10),
                     size = (12,1), 
                     font = ('Georgia', 16)),
                     sg.Input(key = '-fluoro_path-'),
                     sg.FolderBrowse(font = ('Georgia', 12), pad = ((10,10),5))],
             [sg.Text('Light',
-                    pad = ((3,0),5),
+                    pad = ((3,0),10),
                     size = (12,1), 
                     font = ('Georgia', 16)),
                     sg.Input(key = '-light_path-'),
                     sg.FolderBrowse(font = ('Georgia', 12), pad = ((10,10),5))],
             [sg.Text('Output',
-                    pad = ((3,0),5),
+                    pad = ((3,0),10),
                     size = (12,1),
                     font = ('Georgia', 16)),
                     sg.Input(key = '-output_path-'),
                     sg.FolderBrowse(font = ('Georgia', 12), pad = ((10,10),5))],
             [sg.Text('File Name',
-                    pad = ((3,0),5),
+                    pad = ((3,0),10),
                     size = (12,1),
                     font = ('Georgia', 16)),
                     sg.Input(key = '-file_name-'),],
@@ -123,10 +53,9 @@ def make_input():
                     element_justification='l',
                     finalize = True)
 
+#HELP WINDOW
 def make_help():
-   text1 = ('Fluorescent: Select the folder containing the fluorescent microscope images. EX: /User/Name/Downloads/fluorescent/')
-   new_text1 = textwrap.fill(text1, 400)
-   layout_help = [[sg.Text(new_text1,
+   layout_help = [[sg.Text("Fluorescent: Select the folder containing the fluorescent microscope images. EX: /User/Name/Downloads/fluorescent/",
                     pad = ((3,0),0),
                     size = (12,1), 
                     expand_x = True,
@@ -160,6 +89,7 @@ def make_help():
                     finalize = True)
 
 
+#CONFIRM WINDOW
 def make_confirm():
     layout2 = [[sg.Text('You selected these folders:',
                 #size = (12,1),
@@ -177,8 +107,8 @@ def make_confirm():
                 #size = (12,1),
                 font = ('Helvetica Bold', 16),
                 expand_x = True,)],
-        [sg.OK(),
-            sg.Exit()
+        [sg.OK(pad = ((5,5),10)),
+            sg.Exit(pad = ((5,5),10))
         ],
                 ]
     return sg.Window('Folders Selected',
@@ -200,8 +130,10 @@ def main_input():
      while True: 
         event_input, values_input = window_input.read()
         if event_input == sg.WIN_CLOSED:
+            cv.destroyAllWindows()
             break
         if event_input == 'Cancel':
+            cv.destroyAllWindows()
             break
         if event_input == 'Help':
             main_help()
@@ -225,6 +157,7 @@ def main_confirm():
     while True:
         event_confirm, values_confirm = window_confirm.read()
         if event_confirm == sg.WIN_CLOSED:
+            cv.destroyAllWindows()
             break
         elif event_confirm == 'Exit':
             fluoro_path = ""
@@ -232,6 +165,7 @@ def main_confirm():
             output_path = ""
             window_confirm.Close()
             window_confirm.active = False
+            cv.destroyAllWindows()
             break
         elif event_confirm == 'OK':
             window_confirm.Close()
@@ -239,7 +173,87 @@ def main_confirm():
             #window_input.Close()
             img_process()
             break
+
+# MAIN IMAGE PROCESSING
+def img_process():
+    #PROCESSING
+    KERNEL = np.ones((3, 3), np.uint8)
+    FLUORO_PATH = Path(fluoro_path)
+    LIGHT_PATH = Path(light_path)
+    OUTPUT_PATH = Path(output_path)
+    FILE_NAME = file_name
+
+    with (OUTPUT_PATH / (FILE_NAME + ".csv")).open('w', newline='') as file:
+
+        writer = csv.DictWriter(file, ['image_name', 'cell_num', 'droplets_count'])
+        writer.writeheader()
+
+        # Iterate through images in a given folder.
+        for file_path in FLUORO_PATH.glob('*'):
+            if (file_path.suffix.lower() == '.jpg')|\
+            (file_path.suffix.lower() == '.jpeg')|\
+            (file_path.suffix.lower() == '.tif')|\
+            (file_path.suffix.lower() == '.tiff'):
             
-                    
-    
-main_input()
+                original = cv.imread(str(file_path), cv.IMREAD_GRAYSCALE)
+                cv.imshow("original_" + str(file_path.name), original)
+                cv.waitKey(0)
+                #cv.imwrite("original" + "_file_" + str(i) + ".jpg", original)
+                assert original is not None, "file could not be read, check with pathlib.Path.exists()"
+                smallest = np.amin(original)
+                biggest = np.amax(original)
+                print(smallest)
+                print(biggest)
+
+                # Preprocessing
+                #normal = cv.normalize(original, None, alpha=0, beta=800, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8U)
+                normal = ski.exposure.rescale_intensity(original)
+                cv.imshow("normal" + str(file_path.name), normal)
+                cv.waitKey(0)
+
+                blur = cv.GaussianBlur(normal, (5, 5), 0)
+
+                thresh = cv.adaptiveThreshold(blur, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 9, 2)
+                cv.imshow("thresh" + str(file_path.name), thresh)
+                cv.waitKey(0)
+
+                dilated = cv.dilate(thresh, KERNEL, iterations=1)
+                cv.imshow("dilated" + str(file_path.name), dilated)
+                cv.waitKey(0)
+                eroded = cv.erode(dilated, KERNEL, iterations=1)
+                cv.imshow("eroded" + str(file_path.name), eroded)
+                cv.waitKey(0)
+
+                # edge = ski.filters.sobel(eroded)
+                # cv.imshow("edge" + str(file_path.name), edge)
+                # cv.waitKey(0)
+
+                # Connected Components
+                N, connected, statistics, centroids = cv.connectedComponentsWithStats(eroded)
+                sizes = statistics[:,-1]
+                
+                cell_num = 0
+                for n in range(1, N):
+                    if sizes[n] >= 1000:
+                        mask = np.zeros(connected.shape, np.uint8)
+                        mask[connected == n] = 1
+
+                        mask = cv.dilate(mask, KERNEL, iterations=8)
+                        mask = cv.erode(mask, KERNEL, iterations=8)
+
+                        cell = np.copy(original)
+                        cell[~mask.astype(bool)] = 0
+
+                        # Count Droplets
+                        spots = cv.adaptiveThreshold(cell, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 11, 2)
+                        circ, hierarchy = cv.findContours(spots, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+                        writer.writerow({
+                            'image_name': file_path.name,
+                            'cell_num': cell_num + 1,
+                            'droplets_count': len(circ)
+                        })
+
+                        cell_num += 1
+                    cv.destroyAllWindows()
+
+

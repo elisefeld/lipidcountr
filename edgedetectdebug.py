@@ -2,12 +2,18 @@ import numpy as np
 import cv2 as cv
 import csv
 from pathlib import Path
+import fileparse
 
+
+# 1 pixel = this many uM
+
+
+fileparse.main('/Users/Elise/Code/TETLAB/Images/INA/3.10.24/fluoro/24.03.10_fluoro_no1.jpg', '/Users/Elise/Code/TETLAB/Images/INA/3.10.24/light/24.03.10_light_no1.jpg')
 KERNEL = np.ones((3, 3), np.uint8)
 CLAHE = cv.createCLAHE(clipLimit=5,tileGridSize=(2,2))
 NORM_IMG = np.zeros((800, 800))
 
-DIRECTORY_PATH = Path("/Users/Elise/Code/TETLAB/Images/INA/3.10.24/")
+DIRECTORY_PATH = Path("/Users/Elise/Code/TETLAB/Images/INA/3.10.24/fluoro")
 assert DIRECTORY_PATH.exists() is not False, "path does not exist"
 
 with open('lipid_count.csv', 'w', newline='') as file:
@@ -30,6 +36,7 @@ with open('lipid_count.csv', 'w', newline='') as file:
 
             elif ((file_suffix.lower() == '.tif')) | ((file_suffix.lower() == '.tiff')):
                 original = cv.imread(str(file_path), -1)
+                original = cv.cvtColor(original, cv.COLOR_RGB2GRAY)
                 original = (original/256).astype('uint8')
             
 
@@ -102,9 +109,9 @@ with open('lipid_count.csv', 'w', newline='') as file:
                     cv.waitKey(0)
 
 
-                    canny = cv.Canny(cell, 0, 200)
-                    cv.imshow("canny_" + str(file_path.name), canny)
-                    cv.waitKey(0)
+                    # canny = cv.Canny(cell, 0, 200)
+                    # cv.imshow("canny_" + str(file_path.name), canny)
+                    # cv.waitKey(0)
 
             writer.writerow({
                 'image_name': file_path.name,
