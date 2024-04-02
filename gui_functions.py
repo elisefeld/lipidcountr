@@ -6,11 +6,6 @@ from pathlib import Path
 import PySimpleGUI as sg
 import matplotlib.pyplot as plt
 import skimage as ski
-from skimage import img_as_float, exposure, io
-from skimage.filters import try_all_threshold, threshold_triangle, median, difference_of_gaussians, window
-from skimage.morphology import disk
-from IPython.display import Image, display
-import process_functions
 
 #GUI
 sg.theme('Dark')
@@ -131,52 +126,50 @@ def img_process():
         # Iterate through images in a given folder.
         for file_path in FLUORO_PATH.glob('*'):
             if (file_path.suffix.lower() == '.jpg')|\
-            (file_path.suffix.lower() == '.jpeg')|\
-            (file_path.suffix.lower() == '.tif')|\
-            (file_path.suffix.lower() == '.tiff'):
+               (file_path.suffix.lower() == '.jpeg')|\
+               (file_path.suffix.lower() == '.tif')|\
+               (file_path.suffix.lower() == '.tiff'):
+            
+                img = cv.imread(str(file_path), cv.IMREAD_ANYDEPTH)
+                assert img is not None, "file could not be read, check with pathlib.Path.exists()"
                 
-                original = cv.imread(str(file_path))
-                gray = cv.cvtColor(original, cv.COLOR_BGR2GRAY) 
+                #Add check for number of channels
+                #gray = ski.color.rgb2gray(original)
+                #gray = cv.cvtColor(original, cv.COLOR_BGR2GRAY) 
 
-                assert original is not None, "file could not be read, check with pathlib.Path.exists()"
-                cv.imshow("original_" + str(file_path.name), original)
-                cv.waitKey(0)
-                
-                if ski.exposure.is_low_contrast(gray):
-                    print ("Image contrast is too low for accurate analysis.")
-                    break
-
-                ## Preprocessing
-                # Normalize
-                #normal = ski.exposure.rescale_intensity(gray)
-                #normal = cv.normalize(normal, None, alpha=0, beta=800, norm_type=cv.NORM_MINMAX, dtype=cv.CV_8U)
-                #cv.imwrite("normal" + "_file_" + str(file_path.name) + ".jpg", normal)
-
+             # Preprocessing
                 # Gaussian Blur
-                blur = cv.GaussianBlur(gray, (1, 1), 0)
-                cv.imwrite("blur" + "_file_" + str(file_path.name) + ".jpg", blur)
+                blur = cv.GaussianBlur(img, (3, 3), 0)
+                #cv.imwrite("blur" + "_file_" + str(file_path.name) + ".jpg", blur)
 
-                # Thresholding for Whole Cell
-                thresh_cells = ski.filters.threshold_triangle(blur)
+                if (img.dtype) == "uint16":
+                    img_16 = np.copy(blur)
+                    img_8 = cv.normalize(img_16, None, 0, 255, cv.NORM_MINMAX, dtype=cv.CV_8UC1) 
+                    cv.imshow("img_8" + str(file_path.name), img_8)
+                    cv.waitKey(0)
+                elif (img.dtype) == "uint8":
+                    img_8 = np.copy(blur)
+                    img_8 = cv.normalize(img_8, None, 0, 255, cv.NORM_MINMAX, dtype=cv.CV_8UC1) 
+                    cv.imshow("img_8" + str(file_path.name), img_8)
+                    cv.waitKey(0)
+                
+                plt.hist(img_8.ravel(), bins=256, range=(0, 255), fc='k', ec='k') 
+                plt.show()
+
+                # Thresholding for Whole Cell (Triangle)
+                thresh_cells = ski.filters.threshold_triangle(img_8)
                 cell_mask = blur > thresh_cells
-
-                cell_mask = cell_mask.astype(int)
-                cell_mask = np.uint8(cell_mask)
-
-                result = cv.bitwise_and(blur, blur, mask = cell_mask)
-                cv.imshow("result" + str(file_path.name), result)
-                cv.waitKey(0)
-
-                equal = ski.exposure.adjust_gamma(result, gamma = 1.5)
-                cv.imshow("equal" + str(file_path.name), equal)
-                cv.waitKey(0)
+                cell_mask = ski.util.img_as_ubyte(cell_mask)
 
                 # Smooth out the Cell Mask
                 cell_mask = cv.dilate(cell_mask, KERNEL1, iterations=1)
                 cell_mask = cv.erode(cell_mask, KERNEL1, iterations=1)
-                cv.imshow("cell_mask" + str(file_path.name), cell_mask)
+
+                #Creates a mask of only cells. 
+                result = cv.bitwise_and(blur, blur, mask = cell_mask)
+                result = cv.normalize(result, None, 0, 255, cv.NORM_MINMAX, dtype=cv.CV_8UC1) 
+                cv.imshow("result" + str(file_path.name), result)
                 cv.waitKey(0)
-                cv.imwrite("cell_mask" + "_file_" + str(file_path.name) + ".jpg", cell_mask)
 
                 # Connected Components (counting # of cells in image)
                 N_cell, connected_cell, statistics_cell, centroids_cell = cv.connectedComponentsWithStats(cell_mask)
@@ -184,50 +177,59 @@ def img_process():
                 
                 cell_num = 0
                 for n in range(1, N_cell):
-                    if sizes_cell[n] >= 2000:
+                    if sizes_cell[n] >= 1000:
                         mask_cell = np.zeros(connected_cell.shape, np.uint8)
                         mask_cell[connected_cell == n] = 1
-
                         mask_cell = cv.dilate(mask_cell, KERNEL1, iterations=8)
                         mask_cell = cv.erode(mask_cell, KERNEL1, iterations=8)
 
-                        cell = np.copy(blur)
-                        cell[~mask_cell.astype(bool)] = 0
+                        cell = np.copy(img_8)
+                        cell[~ski.util.img_as_bool(mask_cell)] = 0
 
-                        # Count Droplets
-                        biggest = np.amax(original)
-                        smallest = np.amin(original)
+                        biggest = np.amax(img_8)
+                        smallest = np.amin(img_8)
                         pixel_range = biggest - smallest
                         drop_tval = (pixel_range/2)
 
-                        thresh_drops = ski.filters.threshold_yen(equal)
-                        drop_mask = blur > thresh_drops
-                        drop_mask = drop_mask.astype(np.uint8)
-                        ret, thresh_drops2 = cv.threshold(equal, drop_tval, 255, cv.THRESH_BINARY)
-
-                        # Connected Components (counting # of droplets in image)
-                        N_drop, connected_drop, statistics_drop, centroids_drop = cv.connectedComponentsWithStats(cell_mask)
-                        sizes_drop = statistics_drop[:,-1]
-
-                        # drop_num = 0
-                        # for n in range(1, N_drop):
-                        #     if sizes_drop[n] < 2000:
-                        #         drop_num += 1
-
-
-                        circ, hierarchy = cv.findContours(drop_mask, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-                        circ2, hierarchy = cv.findContours(thresh_drops2, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-                        contours_img = cv.drawContours(original, circ, -1, (0, 255, 0), 3) 
-                        cv.imshow("contours_img" + str(file_path.name), contours_img)
-                        cv.imwrite("contours_img" + "_file_" + str(file_path.name) + ".jpg", contours_img)
+                    # Count Droplets
+                        # Yen Thresholding Method
+                        thresh_drops_yen = ski.filters.threshold_yen(result)
+                        thresh_drops_yen = result > thresh_drops_yen
+                        thresh_drops_yen = ski.util.img_as_ubyte(thresh_drops_yen)
+                        cv.imshow("thresh_drops_yen" + str(file_path.name), thresh_drops_yen)
                         cv.waitKey(0)
+                        circ_yen, hierarchy = cv.findContours(thresh_drops_yen, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+                        contours_yen = cv.drawContours(np.copy(img_8), circ_yen, -1, (0, 255, 0), 3) 
+                        cv.imshow("contours_yen" + str(file_path.name), contours_yen)
+                        cv.waitKey(0)
+                        cv.imwrite("contours_yen" + "_file_" + str(file_path.name) + ".jpg", contours_yen)
+
+
+                        # Binary Thresholding Method
+                        ret, thresh_drops_bin = cv.threshold(result, drop_tval, 255, cv.THRESH_BINARY)
+                        #thresh_drops_bin = cv.adaptiveThreshold(img_8, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY,11,2)
+                        cv.imshow("thresh_drops_bin" + str(file_path.name), thresh_drops_bin)
+                        cv.waitKey(0)
+                        print(type(thresh_drops_bin))
+                        print(thresh_drops_bin.dtype)
+
+                        thresh_drops_bin = ski.util.img_as_ubyte(thresh_drops_bin)
+                        #circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+                        #circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+                        circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE)
+                        #circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_FLOODFILL, cv.CHAIN_APPROX_SIMPLE)
+                        contours_bin = cv.drawContours(np.copy(img_8), circ_bin, -1, (0, 255, 0), 3) 
+                        cv.imshow("contours_bin" + str(file_path.name), contours_bin)
+                        cv.waitKey(0)                      
+                        cv.imwrite("contours_bin" + "_file_" + str(file_path.name) + ".jpg", contours_bin)
+      
                         
                         writer.writerow({
                             'image_name': file_path.name,
                             'cell_num': cell_num + 1,
-                            'droplets_count_yen': len(circ),
-                            'droplets_count_bin': len(circ2)
-                        })
+                            'droplets_count_yen': len(circ_yen),
+                            'droplets_count_bin': len(circ_bin)
+                                        })
 
                         cell_num += 1
                     cv.destroyAllWindows()
