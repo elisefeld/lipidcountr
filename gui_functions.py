@@ -120,7 +120,7 @@ def img_process():
 
     with (OUTPUT_PATH / (FILE_NAME + ".csv")).open('w', newline='') as file:
 
-        writer = csv.DictWriter(file, ['image_name', 'cell_num', 'droplets_count_bin', "droplets_count_yen"])
+        writer = csv.DictWriter(file, ['image_name', 'cell_num', "droplets_count"])
         writer.writeheader()
 
         # Iterate through images in a given folder.
@@ -140,7 +140,7 @@ def img_process():
              # Preprocessing
                 # Gaussian Blur
                 blur = cv.GaussianBlur(img, (3, 3), 0)
-                #cv.imwrite("blur" + "_file_" + str(file_path.name) + ".jpg", blur)
+                #cv.imwrite("blur_" + str(file_path.name) + ".jpg", blur)
 
                 if (img.dtype) == "uint16":
                     img_16 = np.copy(blur)
@@ -153,8 +153,8 @@ def img_process():
                     cv.imshow("img_8" + str(file_path.name), img_8)
                     cv.waitKey(0)
                 
-                plt.hist(img_8.ravel(), bins=256, range=(0, 255), fc='k', ec='k') 
-                plt.show()
+                # plt.hist(img_8.ravel(), bins=256, range=(0, 255), fc='k', ec='k') 
+                # plt.show()
 
                 # Thresholding for Whole Cell (Triangle)
                 thresh_cells = ski.filters.threshold_triangle(img_8)
@@ -168,7 +168,8 @@ def img_process():
                 #Creates a mask of only cells. 
                 result = cv.bitwise_and(blur, blur, mask = cell_mask)
                 result = cv.normalize(result, None, 0, 255, cv.NORM_MINMAX, dtype=cv.CV_8UC1) 
-                cv.imshow("result" + str(file_path.name), result)
+                cv.imshow("result_" + str(file_path.name), result)
+                cv.imwrite("result_" + str(file_path.name) + ".jpg", result)
                 cv.waitKey(0)
 
                 # Connected Components (counting # of cells in image)
@@ -177,7 +178,7 @@ def img_process():
                 
                 cell_num = 0
                 for n in range(1, N_cell):
-                    if sizes_cell[n] >= 1000:
+                    if sizes_cell[n] >= 2000:
                         mask_cell = np.zeros(connected_cell.shape, np.uint8)
                         mask_cell[connected_cell == n] = 1
                         mask_cell = cv.dilate(mask_cell, KERNEL1, iterations=8)
@@ -186,49 +187,25 @@ def img_process():
                         cell = np.copy(img_8)
                         cell[~ski.util.img_as_bool(mask_cell)] = 0
 
-                        biggest = np.amax(img_8)
-                        smallest = np.amin(img_8)
-                        pixel_range = biggest - smallest
-                        drop_tval = (pixel_range/2)
-
                     # Count Droplets
                         # Yen Thresholding Method
                         thresh_drops_yen = ski.filters.threshold_yen(result)
                         thresh_drops_yen = result > thresh_drops_yen
                         thresh_drops_yen = ski.util.img_as_ubyte(thresh_drops_yen)
-                        cv.imshow("thresh_drops_yen" + str(file_path.name), thresh_drops_yen)
+                        cv.imshow("thresh_drops_yen_" + str(file_path.name), thresh_drops_yen)
+                        cv.imwrite("thresh_drops_yen_" + str(file_path.name) + ".jpg", thresh_drops_yen)
                         cv.waitKey(0)
+
                         circ_yen, hierarchy = cv.findContours(thresh_drops_yen, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
                         contours_yen = cv.drawContours(np.copy(img_8), circ_yen, -1, (0, 255, 0), 3) 
-                        cv.imshow("contours_yen" + str(file_path.name), contours_yen)
+                        cv.imshow("contours_yen_" + str(file_path.name), contours_yen)
+                        cv.imwrite("contours_yen_" + str(file_path.name) + ".jpg", contours_yen)
                         cv.waitKey(0)
-                        cv.imwrite("contours_yen" + "_file_" + str(file_path.name) + ".jpg", contours_yen)
 
-
-                        # Binary Thresholding Method
-                        ret, thresh_drops_bin = cv.threshold(result, drop_tval, 255, cv.THRESH_BINARY)
-                        #thresh_drops_bin = cv.adaptiveThreshold(img_8, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY,11,2)
-                        cv.imshow("thresh_drops_bin" + str(file_path.name), thresh_drops_bin)
-                        cv.waitKey(0)
-                        print(type(thresh_drops_bin))
-                        print(thresh_drops_bin.dtype)
-
-                        thresh_drops_bin = ski.util.img_as_ubyte(thresh_drops_bin)
-                        #circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-                        #circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-                        circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_CCOMP, cv.CHAIN_APPROX_SIMPLE)
-                        #circ_bin, hierarchy = cv.findContours(thresh_drops_bin, cv.RETR_FLOODFILL, cv.CHAIN_APPROX_SIMPLE)
-                        contours_bin = cv.drawContours(np.copy(img_8), circ_bin, -1, (0, 255, 0), 3) 
-                        cv.imshow("contours_bin" + str(file_path.name), contours_bin)
-                        cv.waitKey(0)                      
-                        cv.imwrite("contours_bin" + "_file_" + str(file_path.name) + ".jpg", contours_bin)
-      
-                        
                         writer.writerow({
                             'image_name': file_path.name,
                             'cell_num': cell_num + 1,
-                            'droplets_count_yen': len(circ_yen),
-                            'droplets_count_bin': len(circ_bin)
+                            'droplets_count': len(circ_yen)
                                         })
 
                         cell_num += 1
