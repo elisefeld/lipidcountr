@@ -133,9 +133,9 @@ def img_process():
                 img = cv.imread(str(file_path), cv.IMREAD_ANYDEPTH)
                 assert img is not None, "file could not be read, check with pathlib.Path.exists()"
                 
-                #Add check for number of channels
-                #gray = ski.color.rgb2gray(original)
-                #gray = cv.cvtColor(original, cv.COLOR_BGR2GRAY) 
+                #Check for number of channels
+                if(len(img.shape)) == 3:
+                    img = cv.cvtColor(img, cv.COLOR_BGR2GRAY) 
 
              # Preprocessing
                 # Gaussian Blur
@@ -157,13 +157,22 @@ def img_process():
                 # plt.show()
 
                 # Thresholding for Whole Cell (Triangle)
-                thresh_cells = ski.filters.threshold_triangle(img_8)
+
+                # fig, ax = ski.filters.try_all_threshold(img_8, figsize=(10, 8), verbose=False)
+                # plt.show()
+                # thresh_cells = ski.filters.threshold_triangle(img_8)
+                thresh_cells = ski.filters.threshold_li(img_8)
                 cell_mask = blur > thresh_cells
                 cell_mask = ski.util.img_as_ubyte(cell_mask)
 
                 # Smooth out the Cell Mask
-                cell_mask = cv.dilate(cell_mask, KERNEL1, iterations=1)
-                cell_mask = cv.erode(cell_mask, KERNEL1, iterations=1)
+                # cell_mask = cv.dilate(cell_mask, KERNEL1, iterations=1)
+                # cell_mask = cv.erode(cell_mask, KERNEL1, iterations=1)
+                cell_mask = ski.morphology.area_closing(cell_mask)
+                cell_mask_inverse = cv.bitwise_not(cell_mask)
+                cv.imshow("cell_mask_inverse_" + str(file_path.name), cell_mask_inverse)
+                cv.imwrite("cell_mask_inverse_" + str(file_path.name) + ".jpg", cell_mask_inverse)
+                cv.waitKey(0)
 
                 #Creates a mask of only cells. 
                 result = cv.bitwise_and(blur, blur, mask = cell_mask)
