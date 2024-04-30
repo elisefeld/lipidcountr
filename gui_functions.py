@@ -4,7 +4,6 @@ import cv2 as cv
 import csv
 from pathlib import Path
 import PySimpleGUI as sg
-import matplotlib.pyplot as plt
 import skimage as ski
 
 #GUI
@@ -132,7 +131,7 @@ def img_process():
             
                 img = cv.imread(str(file_path), cv.IMREAD_ANYDEPTH)
                 assert img is not None, "file could not be read, check with pathlib.Path.exists()"
-                
+
                 #Check for number of channels
                 if(len(img.shape)) == 3:
                     img = cv.cvtColor(img, cv.COLOR_BGR2GRAY) 
@@ -156,19 +155,17 @@ def img_process():
                 # plt.hist(img_8.ravel(), bins=256, range=(0, 255), fc='k', ec='k') 
                 # plt.show()
 
-                # Thresholding for Whole Cell (Triangle)
-
                 # fig, ax = ski.filters.try_all_threshold(img_8, figsize=(10, 8), verbose=False)
                 # plt.show()
-                # thresh_cells = ski.filters.threshold_triangle(img_8)
+                
                 thresh_cells = ski.filters.threshold_li(img_8)
                 cell_mask = blur > thresh_cells
                 cell_mask = ski.util.img_as_ubyte(cell_mask)
 
                 # Smooth out the Cell Mask
-                # cell_mask = cv.dilate(cell_mask, KERNEL1, iterations=1)
-                # cell_mask = cv.erode(cell_mask, KERNEL1, iterations=1)
                 cell_mask = ski.morphology.area_closing(cell_mask)
+
+                # Invert for Display
                 cell_mask_inverse = cv.bitwise_not(cell_mask)
                 cv.imshow("cell_mask_inverse_" + str(file_path.name), cell_mask_inverse)
                 cv.imwrite("cell_mask_inverse_" + str(file_path.name) + ".jpg", cell_mask_inverse)
@@ -195,6 +192,14 @@ def img_process():
 
                         cell = np.copy(img_8)
                         cell[~ski.util.img_as_bool(mask_cell)] = 0
+
+                        contours_cell ,hierarchy_cell = cv.findContours(mask_cell, cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
+                        print("Number of contours in image:",len(contours_cell))
+                        cnt = contours_cell[0]
+                        pxl_area = cv.contourArea(cnt)
+                        print('Area:', pxl_area)
+
+
 
                     # Count Droplets
                         # Yen Thresholding Method
